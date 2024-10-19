@@ -21,7 +21,7 @@ namespace {
 namespace mnist_deep_ann
 {
 
-    char MnistDataInstance::getPixel(size_t row, size_t col) const
+    unsigned char MnistDataInstance::getPixel(size_t row, size_t col) const
     {
         if (row >= rows && col >=cols)
             throw std::runtime_error(
@@ -62,7 +62,7 @@ namespace mnist_deep_ann
             dataInstance->rows = num_rows;
             dataInstance->cols = num_cols;
             dataInstance->raw_data.resize(num_rows * num_cols, 0);
-            data_file_stream.read(dataInstance->raw_data.data(), num_rows * num_cols);
+            data_file_stream.read(reinterpret_cast<char*>(dataInstance->raw_data.data()), num_rows * num_cols);
             result->push_back(dataInstance);
         }
         return result;
@@ -88,9 +88,9 @@ namespace mnist_deep_ann
             throw std::runtime_error(
                 "Invalid file format. Expected positive number of labels, found " + std::to_string(num_labels)
             );
-        auto result = std::make_shared<std::vector<char> >();
+        auto result = std::make_shared<std::vector<unsigned char> >();
         result->resize(num_labels);
-        labels_stream.read(result->data(), num_labels);
+        labels_stream.read(reinterpret_cast<char*>(result->data()), num_labels);
         return result;
     }
 

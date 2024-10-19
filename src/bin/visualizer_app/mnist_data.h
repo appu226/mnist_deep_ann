@@ -12,11 +12,11 @@ namespace mnist_deep_ann
         using Ptr = std::shared_ptr<MnistDataInstance>;
         using CPtr = std::shared_ptr<MnistDataInstance const>;
         using DataVecPtr = std::shared_ptr<std::vector<CPtr> >;
-        using LabelVecPtr = std::shared_ptr<std::vector<char> >;
+        using LabelVecPtr = std::shared_ptr<std::vector<unsigned char> >;
         size_t rows;
         size_t cols;
-        std::vector<char> raw_data;
-        char getPixel(size_t row, size_t col) const;
+        std::vector<unsigned char> raw_data;
+        unsigned char getPixel(size_t row, size_t col) const;
 
         static DataVecPtr parseData(std::ifstream& data_file_stream);
         static DataVecPtr parseDataFromFile(std::string const& data_file_path);
