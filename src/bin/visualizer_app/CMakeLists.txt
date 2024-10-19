@@ -1,1 +1,1 @@
-add_executable(visualizer_app clo.hpp clo.cpp visualizer_app_main.cpp)
+add_executable(visualizer_app clo.hpp clo.cpp mnist_data.h mnist_data.cpp visualizer_app_main.cpp)
