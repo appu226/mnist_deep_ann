@@ -1,0 +1,1 @@
+add_executable(visualizer_app clo.hpp clo.cpp visualizer_app_main.cpp)
