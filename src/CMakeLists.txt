@@ -9,4 +9,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 project(mnist_deep_ann)
+
+include_directories(lib)
+
+add_subdirectory(lib)
 add_subdirectory(bin)

@@ -1,0 +1,1 @@
+add_library(mnist_data SHARED mnist_data.h mnist_data.cpp)

@@ -1,0 +1,2 @@
+add_subdirectory(command_line_options)
+add_subdirectory(mnist_data)

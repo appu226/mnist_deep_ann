@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <string>
 
-#include "clo.hpp"
-#include "mnist_data.h"
+#include <command_line_options/clo.hpp>
+#include <mnist_data/mnist_data.h>
 
 
 
@@ -46,7 +46,7 @@ int main(int const argc, char const * const * const argv)
     {
         size_t indexToDisplay = appSettings->indexToDisplay.value();
         std::cout << "Displaying data at index " << indexToDisplay
-            << "Label : " << int(labels->at(indexToDisplay)) << '\n';
+            << "\nLabel: " << int(labels->at(indexToDisplay)) << '\n';
         displayDataInstance(*data->at(indexToDisplay));
     }
 
@@ -74,7 +74,7 @@ namespace {
 
     void displayDataInstance(MnistDataInstance const& dataInstance)
     {
-        std::cout << "Size = " << dataInstance.rows << 'x' << dataInstance.cols << "\n ";
+        std::cout << "Size: " << dataInstance.rows << 'x' << dataInstance.cols << "\n ";
         for (size_t c = 0; c < dataInstance.cols; ++c) 
             std::cout << "--";
         std::cout << '\n';

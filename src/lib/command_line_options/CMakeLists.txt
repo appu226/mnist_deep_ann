@@ -1,0 +1,1 @@
+add_library(command_line_options SHARED clo.hpp clo.cpp)
