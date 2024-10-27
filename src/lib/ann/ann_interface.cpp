@@ -68,12 +68,22 @@ class NetworkImpl: public INetwork
     std::vector<std::vector<ConnectionPtr> > m_inputConnections;
     std::vector<ConnectionPtr> m_outputConnections;
     std::vector<NeuronPtr> m_inputToOutputNeuronOrdering;
-    bool m_isValidated;
+    bool m_isPreProcessed;
 
     NeuronPtr const& safeGetNeuron(NeuronIndex idx) const;
     void validateNeuronInputIndex(const Neuron& neuron, NeuronIndex nidx, NeuronInputIndex iidx) const;
     void validateNetworkInput(NetworkInputIndex idx) const;
-    void validateNetwork();
+    void preprocess();
+};
+
+struct NeuronVisitingState
+{
+    NeuronPtr nptr;
+    size_t next_input_to_visit;
+    NeuronVisitingState(NeuronPtr const& v_nptr, size_t v_next_input_to_visit):
+        nptr(v_nptr),
+        next_input_to_visit(v_next_input_to_visit)
+    { }
 };
 
 
@@ -133,12 +143,12 @@ NetworkImpl::NetworkImpl():
     m_inputConnections(),
     m_outputConnections(),
     m_inputToOutputNeuronOrdering(),
-    m_isValidated(false)
+    m_isPreProcessed(false)
 {
 
 }
 NeuronIndex NetworkImpl::addNeuron(IActivationFunction::CPtr const& activationFunction, size_t numInputs) {
-    m_isValidated = false;
+    m_isPreProcessed = false;
     m_neurons.emplace_back(new Neuron(numInputs, activationFunction));
     return NeuronIndex{m_neurons.size() - 1};
 }
@@ -149,7 +159,7 @@ ConnectionIndex NetworkImpl::connectNeurons(
     NeuronInputIndex toNeuronInput
 )
 {
-    m_isValidated = false;
+    m_isPreProcessed = false;
     auto const& fromNeuronPtr = safeGetNeuron(fromNeuron);
     auto const& toNeuronPtr = safeGetNeuron(toNeuron);
     validateNeuronInputIndex(*toNeuronPtr, toNeuron, toNeuronInput);
@@ -173,7 +183,7 @@ ConnectionIndex NetworkImpl::connectNeurons(
 
 NetworkInputIndex NetworkImpl::addInput()
 {
-    m_isValidated = false;
+    m_isPreProcessed = false;
     m_inputConnections.emplace_back();
     return {m_inputConnections.size() - 1};
 }
@@ -181,7 +191,7 @@ NetworkInputIndex NetworkImpl::addInput()
 
 NetworkOutputIndex NetworkImpl::addOutput(NeuronIndex fromNeuron)
 {
-    m_isValidated = false;
+    m_isPreProcessed = false;
     auto const& fromNeuronPtr = safeGetNeuron(fromNeuron);
     m_outputConnections.emplace_back(new Connection(fromNeuronPtr, {}, {0}));
     fromNeuronPtr->outputConnections.push_back(m_outputConnections.back());
@@ -195,7 +205,7 @@ void NetworkImpl::connectInputToNeuron(
     NeuronIndex toNeuron,
     NeuronInputIndex toNeuronInput)
 {
-    m_isValidated = false;
+    m_isPreProcessed = false;
     auto const& toNeuronPtr = safeGetNeuron(toNeuron);
     validateNeuronInputIndex(*toNeuronPtr, toNeuron, toNeuronInput);
     validateNetworkInput(fromNetworkInput);
@@ -396,7 +406,7 @@ std::optional<std::string> NetworkImpl::getValidationError() const
 
 double NetworkImpl::propagateExamples(const std::vector<Example>& examples, double stepSize)
 {
-    validateNetwork();
+    preprocess();
     double totalError = 0;
 
     // clear accumulated weight adjustments
@@ -501,13 +511,42 @@ void NetworkImpl::validateNetworkInput(NetworkInputIndex idx) const
         throw std::runtime_error("Invalid network input index " + s(idx.v));
 }
 
-void NetworkImpl::validateNetwork()
+void NetworkImpl::preprocess()
 {
-    if (m_isValidated) return;
+    if (m_isPreProcessed) return;
     auto validationError = getValidationError();
     if (validationError.has_value())
         throw std::runtime_error("Invalid network: " + *validationError);
-    m_isValidated = true;
+    std::unordered_set<Neuron *> visited_neurons;
+
+    m_isPreProcessed = true;
+    std::vector<NeuronVisitingState> stack;
+    stack.reserve(m_neurons.size());
+    for (auto const& conn: m_outputConnections)
+    {
+        auto nptr = conn->incomingFromNeuron.lock();
+        if (!nptr || visited_neurons.count(nptr.get()) > 0)
+            continue;
+        visited_neurons.insert(nptr.get());
+        stack.emplace_back(nptr, 0);
+    }
+
+    while(!stack.empty())
+    {
+        auto& top = stack.back();
+        if (top.next_input_to_visit >= top.nptr->inputConnections.size())
+        {
+            m_inputToOutputNeuronOrdering.push_back(top.nptr);
+            stack.pop_back();
+            continue;
+        }
+        auto next_ptr = top.nptr->inputConnections[top.next_input_to_visit]->incomingFromNeuron.lock();
+        ++(top.next_input_to_visit);
+        if (!next_ptr || visited_neurons.count(next_ptr.get()) > 0)
+            continue;
+        visited_neurons.insert(next_ptr.get());
+        stack.emplace_back(next_ptr, 0);
+    }
 }
 
 
