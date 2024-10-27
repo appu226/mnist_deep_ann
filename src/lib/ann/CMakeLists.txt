@@ -1,0 +1,1 @@
+add_library(ann SHARED ann_interface.h ann_interface.cpp)
