@@ -1,4 +1,4 @@
-all:	clean cmake build
+all:	clean cmake build test
 
 clean:
 	rm -rf temp/build
@@ -11,3 +11,8 @@ build:
 
 run_visualizer_app:
 	temp/build/bin/visualizer_app/visualizer_app --help
+
+fast_test:
+	temp/build/test/ann_test/ann_test
+
+test:	build fast_test
