@@ -43,6 +43,8 @@ namespace mnist_deep_ann
 
         virtual double propagateExamples(const std::vector<Example>& examples, double stepSize) = 0;
 
+        virtual RVec evaluate(const RVec& inputs) = 0;
+
         static Ptr create();
 
     };

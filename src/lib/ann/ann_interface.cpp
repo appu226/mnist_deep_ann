@@ -61,6 +61,7 @@ class NetworkImpl: public INetwork
 
     std::optional<std::string> getValidationError() const override;
     double propagateExamples(const std::vector<Example>& examples, double stepSize) override;
+    RVec evaluate(RVec const& input) override;
 
     private:
     std::vector<NeuronPtr> m_neurons;
@@ -483,6 +484,40 @@ double NetworkImpl::propagateExamples(const std::vector<Example>& examples, doub
 
     return totalError;
 
+}
+
+
+RVec NetworkImpl::evaluate(RVec const& input)
+{
+    preprocess();
+
+    // verify input size
+    if (input.size() != m_inputConnections.size())
+        throw std::runtime_error("Invalid number of inputs, expected: " + s(m_inputConnections.size())
+            + ", found: " + s(input.size()));
+    
+    // set inputs
+    for (size_t ii = 0, ni = input.size(); ii < ni; ++ii)
+        for (auto const& ic: m_inputConnections[ii])
+            ic->output = input[ii];
+    
+    // forward propagate
+    for (auto const& n: m_inputToOutputNeuronOrdering)
+    {
+        double wsi = 0;
+        for (size_t inic = 0, nnic = n->inputConnections.size(); inic < nnic; ++inic)
+            wsi += n->inputConnections[inic]->output * n->weights[inic];
+        double value = n->activationFunction->compute(wsi);
+        for (auto const& oc: n->outputConnections)
+            oc->output = value;
+    }
+
+    // return output
+    RVec result;
+    result.reserve(m_outputConnections.size());
+    for (auto const& oc: m_outputConnections)
+        result.push_back(oc->output);
+    return result;
 }
 
 
