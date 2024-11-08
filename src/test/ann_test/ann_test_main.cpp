@@ -118,6 +118,48 @@ void singleNeuronTest()
 
 }
 
+void edgeDetectorTest()
+{
+    size_t const GRID_ROWS = 3;
+    size_t const GRID_COLS = 3;
+    size_t const GRID_SIZE = GRID_ROWS * GRID_COLS;
+    size_t const NUM_LAYERS = 10;
+    auto func = SimpleActivation::create();
+    auto network = INetwork::create();
+    std::vector<NetworkInputIndex> networkInputs;
+    for (size_t i = 0; i < GRID_SIZE; ++i)
+        networkInputs.push_back(network->addInput());
+    std::vector<std::vector<NeuronIndex> > neurons;
+    for (size_t ilayer = 0; ilayer < NUM_LAYERS; ++ilayer)
+    {
+        neurons.emplace_back();
+        auto & layer = neurons.back();
+        layer.reserve(GRID_SIZE);
+        for (size_t ineuron = 0; ineuron < GRID_SIZE; ++ineuron)
+        {
+            auto neuron = network->addNeuron(func, GRID_SIZE);
+            layer.push_back(neuron);
+            if (ilayer == 0)
+            {
+                for (size_t iinput = 0; iinput < networkInputs.size(); ++iinput)
+                    network->connectInputToNeuron(networkInputs[iinput], neuron, {iinput});
+            }
+            else
+            {
+                auto const& previousLayer = neurons[neurons.size() - 2];
+                for (size_t ipn = 0; ipn < previousLayer.size(); ++ipn)
+                    network->connectNeurons(previousLayer[ipn], neuron, {ipn});
+            }
+        }
+    }
+    auto const& lastLayer = neurons.back();
+    auto outputNeuron = network->addNeuron(func, lastLayer.size());
+    for (size_t iinput = 0; iinput < lastLayer.size(); ++iinput)
+        network->connectNeurons(lastLayer[iinput], outputNeuron, {iinput});
+    network->addOutput(outputNeuron);
+    
+}
+
 } // end namespace mnist_deep_ann
 
 
@@ -130,6 +172,7 @@ int main()
     using namespace mnist_deep_ann;
     runTest("simpleActivationTest", simpleActivationTest);
     runTest("singleNeuronTest", singleNeuronTest);
+    runTest("edgeDetectorTest", edgeDetectorTest);
     std::cout << "[INFO] ann_test finished." << std::endl;
     return 0;
 }
