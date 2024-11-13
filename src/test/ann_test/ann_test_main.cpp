@@ -118,7 +118,229 @@ void singleNeuronTest()
 
 }
 
+class EdgeDetector {
+    private:
+    enum class PixelType { LOW, MEDIUM, HIGH };
+
+    public:
+
+    EdgeDetector(size_t rows, size_t cols):
+        m_rows(rows),
+        m_cols(cols),
+        m_normalized(rows, std::vector<PixelType>(cols, PixelType::LOW)),
+        m_rough(rows, std::vector<PixelType>(cols, PixelType::LOW)),
+        m_dfsGround(rows, std::vector<bool>(cols, false))
+        { }
+
+    double isEdge(RVec const& pixels);
+
+    private:
+    size_t m_rows, m_cols;
+    std::vector<std::vector<PixelType> > m_normalized, m_rough;
+    std::vector<std::vector<bool> > m_dfsGround;
+    size_t count(PixelType pt, size_t& x, size_t& y) const;
+    void dfs(PixelType pt, size_t x, size_t y);
+    bool isContiguous(PixelType pt, size_t seed_x, size_t seed_y);
+    bool coversEnoughGround(PixelType pt);
+};
+
+double EdgeDetector::isEdge(RVec const& pixels)
+{
+    // check size
+    if (pixels.size() != m_rows * m_cols) return 0.0;
+    
+    // normalize to LOW-MEDIUM-HIGH
+    for (size_t r = 0; r < m_rows; ++r)
+        for (size_t c = 0; c < m_cols; ++c)
+        {
+            double p = pixels[r*m_cols + c];
+            if (p < .333)
+                m_normalized[r][c] = PixelType::LOW;
+            else if (p < .667)
+                m_normalized[r][c] = PixelType::MEDIUM;
+            else
+                m_normalized[r][c] = PixelType::HIGH;
+
+        }
+    
+    
+    size_t low_x = 0, low_y = 0, high_x = 0, high_y = 0;
+    size_t medium_count = count(PixelType::MEDIUM, low_x, low_y);
+    size_t low_count = count(PixelType::LOW, low_x, low_y);
+    size_t high_count = count(PixelType::HIGH, high_x, high_y);
+    if (medium_count > 0)
+    {
+        if (low_count == 0 || high_count == 0)
+            return 0.0;
+        // fill MEDIUM with closest non-medium value
+        m_rough = m_normalized;
+        for (size_t r = 0; r < m_rows; ++r)
+        {
+            for (size_t c = 0; c < m_cols; ++c)
+            {
+                if (m_normalized[r][c] != PixelType::MEDIUM)
+                    continue;
+                size_t closest_distance = m_rows * m_rows + m_cols * m_cols + 1;
+                PixelType closest_filled_pixel = PixelType::LOW;
+                for (size_t r2 = 0; r2 < m_rows; ++r2)
+                {
+                    for (size_t c2 = 0; c2 < m_cols; ++c2)
+                    {
+                        if (m_rough[r2][c2] == PixelType::MEDIUM)
+                            continue;
+                        size_t distance = (r-r2)*(r-r2) + (c-c2)*(c-c2);
+                        if (distance < closest_distance)
+                        {
+                            closest_distance = distance;
+                            closest_filled_pixel = m_rough[r2][c2];
+                        }
+                    }
+                }
+                m_normalized[r][c] = closest_filled_pixel;
+            }
+        }
+        low_count = count(PixelType::LOW, low_x, low_y);
+        high_count = count(PixelType::HIGH, high_x, high_y);
+    }
+    double threshold = m_rows * m_cols * (0.5 - 1.0/(m_rows + m_cols));
+    if (low_count > threshold      // at lest 
+        && high_count > threshold 
+        && isContiguous(PixelType::LOW, low_x, low_y)
+        && isContiguous(PixelType::HIGH, high_x, high_y)
+    )
+        return 1.0;
+    else
+        return 0.0;
+}
+
+bool EdgeDetector::isContiguous(PixelType pt, size_t seed_x, size_t seed_y)
+{
+    // reset dfs ground
+    for (auto& row: m_dfsGround)
+        for (auto it = row.begin(); it < row.end(); ++it)
+            *it = false;
+    
+
+    // visit all connected pixels that match pt
+    dfs(pt, seed_x, seed_y);
+    for (size_t irow = 0; irow < m_rows; ++irow)
+        for (size_t icol = 0; icol < m_cols; ++icol)
+            if (m_normalized[irow][icol] == pt && !m_dfsGround[irow][icol]) 
+            // found pt pixel that was not visited, 
+            // and hence, was disconnected from seed
+            {
+                return false;
+            }
+
+    return true;
+        
+}
+
+size_t EdgeDetector::count(PixelType pt, size_t& x, size_t& y) const
+{
+    size_t res = 0;
+    for (size_t irow = 0; irow < m_rows; ++irow)
+    {
+        for (size_t icol = 0; icol < m_cols; ++icol)
+        {
+            if (m_normalized[irow][icol] == pt)
+            {
+                ++res;
+                x = irow;
+                y = icol;
+            }
+        }
+    }
+    return res;
+}
+
+
+void EdgeDetector::dfs(PixelType pt, size_t seed_x, size_t seed_y)
+{
+    if (m_dfsGround[seed_x][seed_y] || m_normalized[seed_x][seed_y] != pt)
+        return;
+    m_dfsGround[seed_x][seed_y] = true;
+    if (seed_x > 0) dfs(pt,seed_x - 1, seed_y);
+    if (seed_y > 0) dfs(pt,seed_x, seed_y - 1);
+    if (seed_y + 1 < m_cols) dfs(pt,seed_x, seed_y + 1);
+    if (seed_x + 1 < m_rows) dfs(pt,seed_x + 1, seed_y);
+}
+
+
+
 void edgeDetectorTest()
+{
+    std::vector<std::pair<RVec, double> > examples {
+        {
+            {
+                1.0, 1.0, 1.0,
+                1.0, 0.0, 0.0,
+                1.0, 0.0, 0.0
+            }, 
+            1.0
+        },
+        {
+            {
+                1.0, 0.0, 1.0,
+                1.0, 0.0, 1.0,
+                0.0, 0.0, 0.0
+            },
+            0.0
+        },
+        {
+            {
+                0.0, 0.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 1.0
+            },
+            1.0
+        },
+        {
+            {
+                0.5, 0.0, 0.0,
+                0.0, 0.0, 1.0,
+                1.0, 1.0, 1.0
+            },
+            1.0
+        },
+        {
+            {
+                1.0, 0.0, 1.0,
+                0.0, 1.0, 0.0,
+                1.0, 0.0, 1.0
+            },
+            0.0
+        },
+        {
+            {
+                1.0, 1.0, 1.0,
+                1.0, 1.0, 0.0,
+                1.0, 1.0, 1.0
+            },
+            0.0
+        },
+        {
+            {
+                1.0, 1.0, 0.5,
+                0.5, 0.5, 0.5,
+                0.5, 0.0, 0.0
+            },
+            1.0
+        }
+    };
+    EdgeDetector ed(3, 3);
+    for (auto const& example: examples)
+    {
+        auto const& input = example.first;
+        double expectedOutput = example.second;
+        double actualOutput = ed.isEdge(input);
+        ASSERT(isAbsolutelyClose(expectedOutput, actualOutput, 1e-5));
+    }
+}
+
+
+
+void edgeDetectorNeuralNetworkTest()
 {
     size_t const GRID_ROWS = 3;
     size_t const GRID_COLS = 3;
@@ -157,7 +379,10 @@ void edgeDetectorTest()
     for (size_t iinput = 0; iinput < lastLayer.size(); ++iinput)
         network->connectNeurons(lastLayer[iinput], outputNeuron, {iinput});
     network->addOutput(outputNeuron);
+
     
+
+
 }
 
 } // end namespace mnist_deep_ann
@@ -173,6 +398,7 @@ int main()
     runTest("simpleActivationTest", simpleActivationTest);
     runTest("singleNeuronTest", singleNeuronTest);
     runTest("edgeDetectorTest", edgeDetectorTest);
+    runTest("edgeDetectorNeuralNetworkTest", edgeDetectorNeuralNetworkTest);
     std::cout << "[INFO] ann_test finished." << std::endl;
     return 0;
 }
