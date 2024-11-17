@@ -342,8 +342,8 @@ void edgeDetectorTest()
 
 void edgeDetectorNeuralNetworkTest()
 {
-    size_t const GRID_ROWS = 3;
-    size_t const GRID_COLS = 3;
+    size_t const GRID_ROWS = 5;
+    size_t const GRID_COLS = 5;
     size_t const GRID_SIZE = GRID_ROWS * GRID_COLS;
     size_t const NUM_LAYERS = 10;
     auto func = SimpleActivation::create();
@@ -380,7 +380,42 @@ void edgeDetectorNeuralNetworkTest()
         network->connectNeurons(lastLayer[iinput], outputNeuron, {iinput});
     network->addOutput(outputNeuron);
 
-    
+    auto pictureToInputs = [&network, GRID_ROWS, GRID_COLS](std::vector<std::vector<double> > const& picture) -> RVec {
+        ASSERT(picture.size() == GRID_ROWS);
+        RVec result;
+        result.reserve(GRID_COLS * GRID_ROWS);
+        for (auto const& row: picture)
+        {
+            ASSERT(row.size() == GRID_COLS);
+            result.insert(result.end(), row.cbegin(), row.cend());
+        }
+        return result;
+    };
+
+    auto createElemental = [GRID_ROWS, GRID_COLS](std::vector<std::vector<double> > & picture, size_t x0, size_t y0, size_t x1, size_t y1) -> void {
+        for (size_t r = 0; r < GRID_ROWS; ++r)
+        {
+            for (size_t c = 0; c < GRID_COLS; ++c)
+            {
+                size_t dist0 = (x0-r)*(x0-r) + (y0-c)*(y0-c);
+                size_t dist1 = (x1-r)*(x1-r) + (y1-c)*(y1-c);
+                picture[r][c] = ((dist0 < dist1) ? 0.0 : 1.0);
+            }
+        }
+    };
+
+    std::vector<Example> examples;
+    // elemental examples
+    std::vector<std::vector<double> > picture (GRID_ROWS, std::vector<double>(GRID_COLS, 0.0));
+    for (size_t seed_r = 0; seed_r < GRID_ROWS; ++seed_r)
+    {
+        createElemental(picture, seed_r, 0, GRID_ROWS - seed_r, GRID_COLS - 1);
+        examples.push_back({pictureToInputs(picture), RVec(1, 1.0)});
+
+        createElemental(picture, GRID_ROWS - seed_r, GRID_COLS - 1, seed_r, 0);
+        examples.push_back({pictureToInputs(picture), RVec(1, 1.0)});
+    }
+
 
 
 }
