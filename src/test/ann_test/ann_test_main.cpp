@@ -346,6 +346,8 @@ void edgeDetectorNeuralNetworkTest()
     size_t const GRID_COLS = 5;
     size_t const GRID_SIZE = GRID_ROWS * GRID_COLS;
     size_t const NUM_LAYERS = 10;
+    size_t const NUM_RANDOM_TRAINING_EXAMPLES = GRID_SIZE*3;
+    size_t const SEED = 3478;
     auto func = SimpleActivation::create();
     auto network = INetwork::create();
     std::vector<NetworkInputIndex> networkInputs;
@@ -392,31 +394,91 @@ void edgeDetectorNeuralNetworkTest()
         return result;
     };
 
-    auto createElemental = [GRID_ROWS, GRID_COLS](std::vector<std::vector<double> > & picture, size_t x0, size_t y0, size_t x1, size_t y1) -> void {
+    auto createElemental = [GRID_ROWS, GRID_COLS](std::vector<std::vector<double> > & picture, size_t r0, size_t c0, size_t r1, size_t c1) -> void {
         for (size_t r = 0; r < GRID_ROWS; ++r)
         {
             for (size_t c = 0; c < GRID_COLS; ++c)
             {
-                size_t dist0 = (x0-r)*(x0-r) + (y0-c)*(y0-c);
-                size_t dist1 = (x1-r)*(x1-r) + (y1-c)*(y1-c);
+                size_t dist0 = (r0-r)*(r0-r) + (c0-c)*(c0-c);
+                size_t dist1 = (r1-r)*(r1-r) + (c1-c)*(c1-c);
                 picture[r][c] = ((dist0 < dist1) ? 0.0 : 1.0);
             }
         }
     };
 
-    std::vector<Example> examples;
     // elemental examples
+    std::vector<Example> examples;
+    std::vector<RVec> elementals;
     std::vector<std::vector<double> > picture (GRID_ROWS, std::vector<double>(GRID_COLS, 0.0));
     for (size_t seed_r = 0; seed_r < GRID_ROWS; ++seed_r)
     {
-        createElemental(picture, seed_r, 0, GRID_ROWS - seed_r, GRID_COLS - 1);
-        examples.push_back({pictureToInputs(picture), RVec(1, 1.0)});
+        createElemental(picture, seed_r, 0, GRID_ROWS - seed_r - 1, GRID_COLS - 1);
+        elementals.push_back(pictureToInputs(picture));
+        examples.push_back({elementals.back(), RVec(1, 1.0)});
 
-        createElemental(picture, GRID_ROWS - seed_r, GRID_COLS - 1, seed_r, 0);
-        examples.push_back({pictureToInputs(picture), RVec(1, 1.0)});
+        createElemental(picture, seed_r, GRID_COLS - 1, GRID_ROWS - seed_r - 1, 0);
+        elementals.push_back(pictureToInputs(picture));
+        examples.push_back({elementals.back(), RVec(1, 1.0)});
     }
 
+    for (size_t seed_c = 0; seed_c < GRID_COLS; ++seed_c)
+    {
+        createElemental(picture, 0, seed_c, GRID_ROWS - 1, GRID_COLS - seed_c - 1);
+        elementals.push_back(pictureToInputs(picture));
+        examples.push_back({elementals.back(), RVec(1, 1.0)});
 
+        createElemental(picture, GRID_ROWS - 1, seed_c, 0, GRID_COLS - seed_c - 1);
+        elementals.push_back(pictureToInputs(picture));
+        examples.push_back({elementals.back(), RVec(1, 1.0)});
+    }
+
+    // all 1-s and all 0-s not allowed
+    for (size_t r = 0; r < GRID_ROWS; ++r) for (size_t c = 0; c < GRID_COLS; ++c) picture[r][c] = 0;
+    examples.push_back({pictureToInputs(picture), RVec(1, 0.0)});
+    for (size_t r = 0; r < GRID_ROWS; ++r) for (size_t c = 0; c < GRID_COLS; ++c) picture[r][c] = 1;
+    examples.push_back({pictureToInputs(picture), RVec(1, 0.0)});
+
+    // some random examples
+    std::default_random_engine gen(SEED);
+    std::uniform_real_distribution<double> sampler(0.001, 0.999);
+    EdgeDetector ed(GRID_ROWS, GRID_COLS);
+    RVec flat_inputs(GRID_SIZE, 0.0);
+    for (size_t rex = 0; rex < NUM_RANDOM_TRAINING_EXAMPLES; ++rex)
+    {
+        for (size_t i = 0; i < flat_inputs.size(); ++i) flat_inputs[i] = sampler(gen);
+        examples.push_back({flat_inputs, RVec(1, ed.isEdge(flat_inputs))});
+    }
+
+    // some perturbations on elementals
+    std::vector<double> const SHOCK_SIZE_SCALE_FACTORS{0.01, 0.25, 0.5, 0.75, 0.99};
+    for (double SSSF: SHOCK_SIZE_SCALE_FACTORS)
+    {
+        for (auto const& elem: elementals)
+        {
+            flat_inputs = elem;
+            for (auto& pixel: flat_inputs) pixel += (sampler(gen) - 0.5) * SSSF;
+            examples.push_back({flat_inputs, RVec(1, ed.isEdge(flat_inputs))});
+        }
+    }
+
+    // for (auto const& ex: examples)
+    // {
+    //     for (size_t r = 0; r < GRID_ROWS; ++r)
+    //     {
+    //         for (size_t c = 0; c < GRID_COLS; ++c)
+    //         {
+    //             double p = ex.inputs[r * GRID_COLS + c];
+    //             if (p < .333333)
+    //                 std::cout << "  ";
+    //             else if (p >= .666666)
+    //                 std::cout << "**";
+    //             else
+    //                 std::cout << "--";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     std::cout << ex.outputs[0] << "\n----------" << std::endl;
+    // }
 
 }
 
