@@ -348,6 +348,7 @@ void edgeDetectorNeuralNetworkTest()
     size_t const NUM_LAYERS = 10;
     size_t const NUM_RANDOM_TRAINING_EXAMPLES = GRID_SIZE*3;
     size_t const SEED = 3478;
+    size_t const NUM_ITERATIONS = 5;
     auto func = SimpleActivation::create();
     auto network = INetwork::create();
     std::vector<NetworkInputIndex> networkInputs;
@@ -479,6 +480,19 @@ void edgeDetectorNeuralNetworkTest()
     //     }
     //     std::cout << ex.outputs[0] << "\n----------" << std::endl;
     // }
+
+    // double err;
+    for (size_t i = 0; i < NUM_ITERATIONS; ++i)
+    {
+        // std::cout << "========== iteration " << i << std::endl;
+        for (const auto& e: examples)
+        {
+            // err =
+            network->propagateExamples({e}, 1000);
+            // std::cout << err << "\n";
+        }
+    }
+            
 
 }
 
