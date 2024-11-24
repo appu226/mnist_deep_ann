@@ -482,15 +482,15 @@ void edgeDetectorNeuralNetworkTest()
     // }
 
     // double err;
-    for (size_t i = 0; i < NUM_ITERATIONS; ++i)
+    for (const auto& e: examples)
     {
-        // std::cout << "========== iteration " << i << std::endl;
-        for (const auto& e: examples)
+        for (size_t i = 0; i < NUM_ITERATIONS; ++i)
         {
             // err =
-            network->propagateExamples({e}, 1000);
+                network->propagateExamples({e}, 1000);
             // std::cout << err << "\n";
         }
+        // std::cout << "============" << std::endl;
     }
             
 

@@ -63,6 +63,9 @@ class NetworkImpl: public INetwork
     double propagateExamples(const std::vector<Example>& examples, double stepSize) override;
     RVec evaluate(RVec const& input) override;
 
+    NetworkDiagnostics::Ptr getDiagnostics() const override;
+    void updateDiagnostics(NetworkDiagnostics& diagnostics) const override;
+
     private:
     std::vector<NeuronPtr> m_neurons;
     std::vector<ConnectionPtr> m_neuronConnections;
@@ -518,6 +521,79 @@ RVec NetworkImpl::evaluate(RVec const& input)
     for (auto const& oc: m_outputConnections)
         result.push_back(oc->output);
     return result;
+}
+
+
+
+NetworkDiagnostics::Ptr NetworkImpl::getDiagnostics() const
+{
+    auto result = std::make_shared<NetworkDiagnostics>();
+    result->networkName = "Network1";
+    
+    std::unordered_map<Neuron const*, std::string> neuron_names;
+    for (size_t in = 0; in < m_neurons.size(); ++in)
+    {
+        std::string neuron_name = "Neuron_" + std::to_string(in);
+        auto const& neuron = *m_neurons[in];
+        neuron_names[&neuron] = neuron_name;
+        NeuronDiagnostics& neuron_diag = result->neurons.emplace(neuron_name, NeuronDiagnostics{neuron.weights.size()}).first->second;
+        neuron_diag.inputWeights = neuron.weights;
+        if (neuron.outputConnections.size() > 0)
+        {
+            neuron_diag.previousOutput = neuron.outputConnections.front()->output;
+            neuron_diag.errorSensitivityToOutput = neuron.outputConnections.front()->errorSensitivityToOutput;
+        }
+        neuron_diag.errorSensitivitiesToWeights = neuron.accumulatedWeightAdjustment;
+    }
+
+    result->inputConnections.reserve(m_inputConnections.size());
+    for (auto const& ics: m_inputConnections)
+    {
+        result->inputConnections.emplace_back();
+        result->inputConnections.back().reserve(ics.size());
+        for (auto const& ic: ics)
+        {
+            result->inputConnections.back().emplace_back();
+            result->inputConnections.back().back().neuronName = neuron_names.at(ic->outgoingToNeuron.lock().get());
+            result->inputConnections.back().back().inputIndex = ic->outgoingToNeuronInputIndex.v;
+        }
+    }
+
+    result->outputConnections.reserve(m_outputConnections.size());
+    for (auto const& oc: m_outputConnections)
+        result->outputConnections.push_back(neuron_names.at(oc->incomingFromNeuron.lock().get()));
+
+    result->neuronConnections.reserve(m_neuronConnections.size());
+    for (auto const& nc: m_neuronConnections)
+    {
+        result->neuronConnections.emplace_back(
+            neuron_names.at(nc->incomingFromNeuron.lock().get()),
+            NeuronInput{
+                neuron_names.at(nc->outgoingToNeuron.lock().get()),
+                nc->outgoingToNeuronInputIndex.v
+            }
+        );
+    }
+
+    return result;
+}
+
+
+void NetworkImpl::updateDiagnostics(NetworkDiagnostics & diagnostics) const
+{
+    for (size_t in = 0; in < m_neurons.size(); ++in)
+    {
+        std::string neuron_name = "Neuron_" + std::to_string(in);
+        auto const& neuron = *m_neurons[in];
+        auto & neuron_diag = diagnostics.neurons.at(neuron_name);
+        neuron_diag.inputWeights = neuron.weights;
+        if (neuron.outputConnections.size() > 0)
+        {
+            neuron_diag.previousOutput = neuron.outputConnections.front()->output;
+            neuron_diag.errorSensitivityToOutput = neuron.outputConnections.front()->errorSensitivityToOutput;
+        }
+        neuron_diag.errorSensitivitiesToWeights = neuron.accumulatedWeightAdjustment;
+    }
 }
 
 

@@ -4,6 +4,10 @@
 #include <optional>
 #include <vector>
 
+
+#include "ann_diagnostics.h"
+
+
 namespace mnist_deep_ann
 {
     using RVec = std::vector<double>;
@@ -44,6 +48,9 @@ namespace mnist_deep_ann
         virtual double propagateExamples(const std::vector<Example>& examples, double stepSize) = 0;
 
         virtual RVec evaluate(const RVec& inputs) = 0;
+
+        virtual NetworkDiagnostics::Ptr getDiagnostics() const = 0;
+        virtual void updateDiagnostics(NetworkDiagnostics & diagnostics) const = 0;
 
         static Ptr create();
 
