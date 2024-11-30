@@ -1,2 +1,4 @@
 temp/**
 .vscode/**
+.vs/**
+src/lib/*/*_export.h

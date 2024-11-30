@@ -33,6 +33,8 @@ SOFTWARE.
 #include <stdexcept>
 #include <sstream>
 
+#include "command_line_options_export.h"
+
 
 namespace mnist_deep_ann {
 
@@ -40,7 +42,7 @@ namespace mnist_deep_ann {
 
   // Struct CommandLine
   //   Represents the arguments passed in a command line
-  struct CommandLine {
+  struct COMMAND_LINE_OPTIONS_EXPORT CommandLine {
     int argc;
     char const * const * argv;
     CommandLine(int c, char const * const * v): argc(c), argv(v) {}
@@ -70,8 +72,8 @@ namespace mnist_deep_ann {
         isMandatory(v_isMandatory)
       { }
 
-      virtual bool parse(CommandLine & cmd) = 0;
-      virtual bool isSet() const = 0;
+      COMMAND_LINE_OPTIONS_EXPORT virtual bool parse(CommandLine & cmd) = 0;
+      COMMAND_LINE_OPTIONS_EXPORT virtual bool isSet() const = 0;
       virtual ~CloInterface() { }
   };
   
@@ -82,7 +84,7 @@ namespace mnist_deep_ann {
   //   Uses a sequence of definitions to parse a sequence of command line options.
   //   The parsed values are populated into the definitions.
   //   The "skipFirstArg" flag can be used to skip the name of the program itself.
-  void parse(const std::vector<std::shared_ptr<CloInterface> > & defn, int argc, char const * const * argv, bool skipFirstArg = true);
+  COMMAND_LINE_OPTIONS_EXPORT void parse(const std::vector<std::shared_ptr<CloInterface> > & defn, int argc, char const * const * argv, bool skipFirstArg = true);
 
 
 

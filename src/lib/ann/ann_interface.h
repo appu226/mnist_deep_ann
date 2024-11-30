@@ -6,13 +6,14 @@
 
 
 #include "ann_diagnostics.h"
+#include "ann_export.h"
 
 
 namespace mnist_deep_ann
 {
     using RVec = std::vector<double>;
 
-    class IActivationFunction {
+    class ANN_EXPORT IActivationFunction {
        public:
        using CPtr = std::shared_ptr<IActivationFunction const>;
        virtual ~IActivationFunction() {}
@@ -32,7 +33,7 @@ namespace mnist_deep_ann
     };
 
 
-    class INetwork {
+    class ANN_EXPORT INetwork {
         public:
         using Ptr = std::shared_ptr<INetwork>;
         virtual ~INetwork() {}

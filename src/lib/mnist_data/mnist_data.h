@@ -1,8 +1,11 @@
 #pragma once
 
 #include <fstream>
+#include <string>
 #include <vector>
 #include <memory>
+
+#include "mnist_data_export.h"
 
 namespace mnist_deep_ann
 {
@@ -16,12 +19,12 @@ namespace mnist_deep_ann
         size_t rows;
         size_t cols;
         std::vector<unsigned char> raw_data;
-        unsigned char getPixel(size_t row, size_t col) const;
+        MNIST_DATA_EXPORT unsigned char getPixel(size_t row, size_t col) const;
 
-        static DataVecPtr parseData(std::ifstream& data_file_stream);
-        static DataVecPtr parseDataFromFile(std::string const& data_file_path);
-        static LabelVecPtr parseLabels(std::ifstream& label_file_stream);
-        static LabelVecPtr parseLabelsFromFile(std::string const& label_file_path);
+        MNIST_DATA_EXPORT static DataVecPtr parseData(std::ifstream& data_file_stream);
+        MNIST_DATA_EXPORT static DataVecPtr parseDataFromFile(std::string const& data_file_path);
+        MNIST_DATA_EXPORT static LabelVecPtr parseLabels(std::ifstream& label_file_stream);
+        MNIST_DATA_EXPORT static LabelVecPtr parseLabelsFromFile(std::string const& label_file_path);
     };
 
 } // end namespace mnist_deep_ann

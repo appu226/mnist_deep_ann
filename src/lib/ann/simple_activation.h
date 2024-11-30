@@ -2,7 +2,7 @@
 
 namespace mnist_deep_ann {
 
-    class SimpleActivation: public IActivationFunction
+    class ANN_EXPORT SimpleActivation: public IActivationFunction
     {
         public:
         double compute(double weightedSumOfInputs) const override;

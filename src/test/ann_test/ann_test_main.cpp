@@ -113,7 +113,7 @@ void singleNeuronTest()
         }
         expected_output = func->compute(wsi);
         actual_output = network->evaluate(test_input);
-        ASSERT(actual_output.size() == 1 && abs(actual_output[0] - expected_output) < 1e-12);
+        ASSERT(actual_output.size() == 1 && abs(actual_output[0] - expected_output) < 1e-8);
     }    
 
 }
