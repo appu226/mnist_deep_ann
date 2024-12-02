@@ -48,6 +48,8 @@ namespace mnist_deep_ann
 
         virtual double propagateExamples(const std::vector<Example>& examples, double stepSize) = 0;
 
+        virtual void perturbWeights(double maxAbsShift) = 0;
+
         virtual RVec evaluate(const RVec& inputs) = 0;
 
         virtual NetworkDiagnostics::Ptr getDiagnostics() const = 0;

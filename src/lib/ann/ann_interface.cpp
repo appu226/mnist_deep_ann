@@ -1,5 +1,6 @@
 #include "ann_interface.h"
 
+#include <random>
 #include <stdexcept>
 #include <unordered_set>
 
@@ -25,8 +26,9 @@ double dotProduct(RVec const& x, RVec const& y);
 
 // class declarations
 struct Neuron {
-    Neuron(size_t numInputs, IActivationFunction::CPtr const& activationFunction);
+    Neuron(NeuronIndex neuronIndex, size_t numInputs, IActivationFunction::CPtr const& activationFunction);
 
+    NeuronIndex neuronIndex;
     IActivationFunction::CPtr activationFunction;
     RVec weights;
     std::vector<ConnectionPtr> inputConnections;
@@ -37,10 +39,12 @@ struct Neuron {
 };
 
 struct Connection {
-    Connection(NeuronWPtr const& incomingFromNeuron,
+    Connection(std::string const& name,
+               NeuronWPtr const& incomingFromNeuron,
                NeuronWPtr const& outgoingToNeuron,
                NeuronInputIndex outgoingToNeuronInputIndex);
     
+    std::string name;
     NeuronWPtr incomingFromNeuron;
     NeuronWPtr outgoingToNeuron;
     NeuronInputIndex outgoingToNeuronInputIndex;
@@ -62,6 +66,7 @@ class NetworkImpl: public INetwork
     std::optional<std::string> getValidationError() const override;
     double propagateExamples(const std::vector<Example>& examples, double stepSize) override;
     RVec evaluate(RVec const& input) override;
+    void perturbWeights(double maxAbsShift) override;
 
     NetworkDiagnostics::Ptr getDiagnostics() const override;
     void updateDiagnostics(NetworkDiagnostics& diagnostics) const override;
@@ -108,7 +113,8 @@ double dotProduct(RVec const& x, RVec const& y)
 
 
 // Neuron function definitions
-Neuron::Neuron(size_t numInputs, IActivationFunction::CPtr const& v_af) :
+Neuron::Neuron(NeuronIndex v_neuronIndex, size_t numInputs, IActivationFunction::CPtr const& v_af) :
+    neuronIndex(v_neuronIndex),
     activationFunction(v_af),
     weights(numInputs, 0.0),
     inputConnections(numInputs, nullptr),
@@ -122,9 +128,11 @@ Neuron::Neuron(size_t numInputs, IActivationFunction::CPtr const& v_af) :
 
 // Connection function definitions
 Connection::Connection(
+    std::string const& v_name,
     NeuronWPtr const& v_incomingFromNeuron,
     NeuronWPtr const& v_outgoingToNeuron,
     NeuronInputIndex v_outgoingToNeuronInputIndex) :
+    name(v_name),
     incomingFromNeuron(v_incomingFromNeuron),
     outgoingToNeuron(v_outgoingToNeuron),
     outgoingToNeuronInputIndex(v_outgoingToNeuronInputIndex),
@@ -153,8 +161,9 @@ NetworkImpl::NetworkImpl():
 }
 NeuronIndex NetworkImpl::addNeuron(IActivationFunction::CPtr const& activationFunction, size_t numInputs) {
     m_isPreProcessed = false;
-    m_neurons.emplace_back(new Neuron(numInputs, activationFunction));
-    return NeuronIndex{m_neurons.size() - 1};
+    NeuronIndex result{ m_neurons.size() };
+    m_neurons.emplace_back(new Neuron(result, numInputs, activationFunction));
+    return result;
 }
 
 ConnectionIndex NetworkImpl::connectNeurons(
@@ -169,10 +178,17 @@ ConnectionIndex NetworkImpl::connectNeurons(
     validateNeuronInputIndex(*toNeuronPtr, toNeuron, toNeuronInput);
     if (toNeuronPtr->inputConnections[toNeuronInput.v] != nullptr)
         throw std::runtime_error(
-            "Neuron " + std::to_string(toNeuron.v) + " already has input at idx "
-            + std::to_string(toNeuronInput.v)
+            "Neuron " + s(toNeuron.v) + " already has input at idx "
+            + s(toNeuronInput.v)
         );
+    std::string name("n");
+    name.append(s(fromNeuron.v))
+        .append("_n")
+        .append(s(toNeuron.v))
+        .append("_")
+        .append(s(toNeuronInput.v));
     auto connection = std::make_shared<Connection>(
+        name,
         fromNeuronPtr,
         toNeuronPtr,
         toNeuronInput
@@ -197,7 +213,11 @@ NetworkOutputIndex NetworkImpl::addOutput(NeuronIndex fromNeuron)
 {
     m_isPreProcessed = false;
     auto const& fromNeuronPtr = safeGetNeuron(fromNeuron);
-    m_outputConnections.emplace_back(new Connection(fromNeuronPtr, {}, {0}));
+    std::string name("n");
+    name.append(s(fromNeuron.v))
+        .append("_o")
+        .append(s(m_outputConnections.size()));
+    m_outputConnections.emplace_back(new Connection(name, fromNeuronPtr, {}, {0}));
     fromNeuronPtr->outputConnections.push_back(m_outputConnections.back());
     return {m_outputConnections.size() - 1};
 }
@@ -211,9 +231,15 @@ void NetworkImpl::connectInputToNeuron(
 {
     m_isPreProcessed = false;
     auto const& toNeuronPtr = safeGetNeuron(toNeuron);
+    std::string name("i");
+    name.append(s(fromNetworkInput.v))
+        .append("_n")
+        .append(s(toNeuron.v))
+        .append("_")
+        .append(s(toNeuronInput.v));
     validateNeuronInputIndex(*toNeuronPtr, toNeuron, toNeuronInput);
     validateNetworkInput(fromNetworkInput);
-    m_inputConnections[fromNetworkInput.v].emplace_back(new Connection({}, toNeuronPtr, toNeuronInput));
+    m_inputConnections[fromNetworkInput.v].emplace_back(new Connection(name, {}, toNeuronPtr, toNeuronInput));
     toNeuronPtr->inputConnections[toNeuronInput.v] = m_inputConnections[fromNetworkInput.v].back();
 }
 
@@ -437,7 +463,7 @@ double NetworkImpl::propagateExamples(const std::vector<Example>& examples, doub
         // set inputs
         for (size_t ii = 0, ni = example.inputs.size(); ii < ni; ++ii)
         {
-            for (auto& conn: m_inputConnections[ii])
+            for (auto& conn : m_inputConnections[ii])
                 conn->output = example.inputs[ii];
         }
 
@@ -451,7 +477,7 @@ double NetworkImpl::propagateExamples(const std::vector<Example>& examples, doub
             double weightedSum = dotProduct(inputs, neuron->weights);
             double output = neuron->activationFunction->compute(weightedSum);
             neuron->deriv = neuron->activationFunction->derivative(weightedSum);
-            for (auto& conn: neuron->outputConnections)
+            for (auto& conn : neuron->outputConnections)
                 conn->output = output;
         }
 
@@ -469,8 +495,10 @@ double NetworkImpl::propagateExamples(const std::vector<Example>& examples, doub
         {
             auto& neuron = m_inputToOutputNeuronOrdering[in_plus_one - 1];
             double errorSensitivityToNeuronOutput = 0;
-            for (auto const& conn: neuron->outputConnections)
+            for (auto const& conn : neuron->outputConnections)
+            {
                 errorSensitivityToNeuronOutput += conn->errorSensitivityToOutput;
+            }
             for (size_t iic = 0, nic = neuron->inputConnections.size(); iic < nic; ++iic)
             {
                 auto& input = neuron->inputConnections[iic];
@@ -478,6 +506,7 @@ double NetworkImpl::propagateExamples(const std::vector<Example>& examples, doub
                 neuron->accumulatedWeightAdjustment[iic] += errorSensitivityToNeuronOutput * neuron->deriv * input->output;
             }
         }
+
     }
 
     // adjust weights
@@ -525,6 +554,19 @@ RVec NetworkImpl::evaluate(RVec const& input)
 
 
 
+void NetworkImpl::perturbWeights(double maxAbsShift)
+{
+    if (maxAbsShift == 0) return;
+    if (maxAbsShift < 0) maxAbsShift *= -1;
+    std::default_random_engine generator;
+    std::uniform_real_distribution<double> distribution(-maxAbsShift, maxAbsShift);
+    for (auto& n : m_neurons)
+        for (auto& w : n->weights)
+            w += distribution(generator);
+}
+
+
+
 NetworkDiagnostics::Ptr NetworkImpl::getDiagnostics() const
 {
     auto result = std::make_shared<NetworkDiagnostics>();
@@ -533,7 +575,7 @@ NetworkDiagnostics::Ptr NetworkImpl::getDiagnostics() const
     std::unordered_map<Neuron const*, std::string> neuron_names;
     for (size_t in = 0; in < m_neurons.size(); ++in)
     {
-        std::string neuron_name = "Neuron_" + std::to_string(in);
+        std::string neuron_name = "Neuron_" + s(in);
         auto const& neuron = *m_neurons[in];
         neuron_names[&neuron] = neuron_name;
         NeuronDiagnostics& neuron_diag = result->neurons.emplace(neuron_name, NeuronDiagnostics{neuron.weights.size()}).first->second;
@@ -583,7 +625,7 @@ void NetworkImpl::updateDiagnostics(NetworkDiagnostics & diagnostics) const
 {
     for (size_t in = 0; in < m_neurons.size(); ++in)
     {
-        std::string neuron_name = "Neuron_" + std::to_string(in);
+        std::string neuron_name = "Neuron_" + s(in);
         auto const& neuron = *m_neurons[in];
         auto & neuron_diag = diagnostics.neurons.at(neuron_name);
         neuron_diag.inputWeights = neuron.weights;
