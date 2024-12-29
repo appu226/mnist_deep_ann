@@ -629,10 +629,12 @@ void NetworkImpl::updateDiagnostics(NetworkDiagnostics & diagnostics) const
         auto const& neuron = *m_neurons[in];
         auto & neuron_diag = diagnostics.neurons.at(neuron_name);
         neuron_diag.inputWeights = neuron.weights;
-        if (neuron.outputConnections.size() > 0)
+        neuron_diag.previousOutput = 0.0;
+        neuron_diag.errorSensitivityToOutput = 0.0;
+        for (auto const& oc : neuron.outputConnections)
         {
-            neuron_diag.previousOutput = neuron.outputConnections.front()->output;
-            neuron_diag.errorSensitivityToOutput = neuron.outputConnections.front()->errorSensitivityToOutput;
+            neuron_diag.previousOutput = oc->output;
+            neuron_diag.errorSensitivityToOutput += oc->errorSensitivityToOutput;
         }
         neuron_diag.errorSensitivitiesToWeights = neuron.accumulatedWeightAdjustment;
     }
