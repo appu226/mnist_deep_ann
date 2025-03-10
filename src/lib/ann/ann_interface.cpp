@@ -545,7 +545,7 @@ if (!(cond)) \
 			return m_neurons[neuron.v]->output;
 		}
 
-		double getNeuronErrorSensitivityToOutput(NeuronIndex neuron) const override
+		double getErrorSensitivityToNeuronOutput(NeuronIndex neuron) const override
 		{
 			ANN_ASSERT(m_neurons.size() > neuron.v, "Invalid neuron index " << neuron.v);
 			return m_neurons[neuron.v]->errorSensitivityToOutput;
@@ -557,7 +557,7 @@ if (!(cond)) \
 			return m_weights[weight.v]->output;
 		}
 
-		double getWeightSensitivityToOutput(WeightIndex weight) const override
+		double getErrorSensitivityToWeight(WeightIndex weight) const override
 		{
 			ANN_ASSERT(m_weights.size() > weight.v, "Invalid weight index " << weight.v);
 			return m_weights[weight.v]->errorSensitivityToOutput;
