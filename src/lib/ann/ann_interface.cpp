@@ -1,8 +1,6 @@
 #include "ann_interface.h"
 
 #include <random>
-#include <sstream>
-#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -11,18 +9,6 @@ using namespace mnist_deep_ann;
 
 
 namespace {
-
-
-
-#define ANN_ASSERT(expr, message) \
-	{ \
-		if (!(expr)) \
-		{ \
-			std::stringstream msg_ss;\
-			msg_ss << message; \
-			throw std::runtime_error(msg_ss.str()); \
-		} \
-	}
 
 
 

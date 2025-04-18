@@ -2,11 +2,24 @@
 
 #include <memory>
 #include <optional>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 
 #include "ann_export.h"
+
+
+#define ANN_ASSERT(expr, message) \
+	{ \
+		if (!(expr)) \
+		{ \
+			std::stringstream msg_ss;\
+			msg_ss << message; \
+			throw std::runtime_error(msg_ss.str()); \
+		} \
+	}
 
 
 namespace mnist_deep_ann
