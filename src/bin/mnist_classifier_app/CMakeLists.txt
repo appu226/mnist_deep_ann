@@ -1,0 +1,2 @@
+add_executable(mnist_classifier_app mnist_classifier_app_main.cpp)
+target_link_libraries(mnist_classifier_app command_line_options mnist_data ann)

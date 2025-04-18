@@ -5,7 +5,7 @@
 
 namespace mnist_deep_ann {
 
-    class IConvolutionHierarchy {
+    class ANN_EXPORT IConvolutionHierarchy {
 
     public :
         

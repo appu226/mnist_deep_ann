@@ -1,1 +1,2 @@
 add_subdirectory(visualizer_app)
+add_subdirectory(mnist_classifier_app)

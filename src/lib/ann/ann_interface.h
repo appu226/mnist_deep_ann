@@ -44,6 +44,9 @@ namespace mnist_deep_ann
     struct Example {
         RVec inputs;
         RVec outputs;
+        using Vec = std::vector<Example>;
+        using VecPtr = std::shared_ptr<Vec>;
+        using VecCPtr = std::shared_ptr<Vec const>;
     };
 
 

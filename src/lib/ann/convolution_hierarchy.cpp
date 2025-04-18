@@ -6,24 +6,11 @@ using namespace mnist_deep_ann;
 
 namespace {
 
-     
-    struct Classifiers
-    {
-        std::vector<NeuronIndex> classifiers;
-    };
-
-    struct ClassifierWeights
-    {
-        std::vector<std::vector<WeightIndex> > weightWindow;
-    };
-
     struct LayerDimensions
     {
         size_t numClassifiers;
         size_t resultingImageWidth;
         size_t resultingImageHeight;
-        size_t slidingWindowWidth;
-        size_t slidingWindowHeight;
     };
 
     struct ClassificationLayer
@@ -32,12 +19,13 @@ namespace {
             classifierWeights(),
             resultingImage(),
             dimensions(std::move(v_dimensions))
-        {
-            
+        { }
 
-        }
-        std::vector<ClassifierWeights> classifierWeights;
-        std::vector<std::vector<Classifiers> > resultingImage;
+        // OC x IC x WX x WY
+        std::vector<std::vector<std::vector<std::vector<WeightIndex> > > > classifierWeights;
+
+        // OC x ONX x ONY
+        std::vector<std::vector<std::vector<NeuronIndex> > > resultingImage;
         LayerDimensions dimensions;
     };
     using ClassificationLayerPtr = std::shared_ptr<ClassificationLayer>;
@@ -55,103 +43,159 @@ namespace {
         std::vector<std::vector<NetworkInputIndex> > m_image;
         bool m_isFinalized;
 
-        //TODO:
-        // initialize m_image in constructor with m_imageWidth X m_imageHeight network inputs
-
-
-        // Add a layer of 
-        void addLayer(size_t newWindowSizeX, size_t newWindowSizeY, size_t numCategories) override
+        ConvolutionHierarchyImpl::ConvolutionHierarchyImpl(
+            size_t imageWidth,
+            size_t imageHeight,
+            IActivationFunction::CPtr const& activationFunction
+        ) :
+            m_imageWidth(imageWidth),
+            m_imageHeight(imageHeight),
+            m_activationFunction(activationFunction),
+            m_network(INetwork::create()),
+            m_layers(),
+            m_image(),
+            m_isFinalized(false)
         {
-            ANN_ASSERT(numCategories > 0, "numCategories cannot be zero.");
+            m_image.reserve(imageWidth);
+            for (size_t x = 0; x < imageWidth; ++x)
+            {
+                m_image.emplace_back();
+                auto& imageRow = m_image.back();
+                imageRow.reserve(imageHeight);
+                for (size_t y = 0; y < imageHeight; ++y)
+                {
+                    imageRow.push_back(m_network->addInput());
+                }
+            }
+        }
+
+
+        void addLayer(size_t WX, size_t WY, size_t OC) override
+        {
+            // We wish to create a the layer with windows of size
+            //    WX * WY
+            // and OC output categories.
+            ANN_ASSERT(OC > 0, "numCategories cannot be zero.");
             
-            // figure out input image dims
-            size_t inputImageWidth, inputImageHeight, inputImageNumCategories;
+            // Suppose the previous layer has:
+            //    INX * INY input neurons
+            //    IC categories
+            size_t INX, INY, IC;
             if (m_layers.empty())
             {
-                inputImageWidth = m_imageWidth;
-                inputImageHeight = m_imageHeight;
-                inputImageNumCategories = 1;
+                INX = m_imageWidth;
+                INY = m_imageHeight;
+                IC = 1;
             }
             else
             {
                 auto const& lld = m_layers.back()->dimensions;
-                inputImageWidth = lld.resultingImageWidth;
-                inputImageHeight = lld.resultingImageHeight;
-                inputImageNumCategories = lld.numClassifiers;
+                INX = lld.resultingImageWidth;
+                INY = lld.resultingImageHeight;
+                IC = lld.numClassifiers;
             }
 
-            // get new layer dimensions
-            ANN_ASSERT(newWindowSizeX <= inputImageWidth, "newWindowSizeX should be less than " << inputImageWidth << " given: " << newWindowSizeX);
-            ANN_ASSERT(newWindowSizeY <= inputImageHeight, "newWindowSizeY should be less than " << inputImageHeight << " given: " << newWindowSizeY);
-            size_t resultingImageWidth = inputImageWidth - newWindowSizeX + 1;
-            size_t resultingImageHeight = inputImageHeight - newWindowSizeY + 1;
-            LayerDimensions ld{ numCategories, resultingImageWidth, resultingImageHeight, newWindowSizeX, newWindowSizeY };
-            
-            // set layer weights
+            // Then, we will have these many output neurons:
+            //    OC * (INX-WX+1) * (INY-WY+1) 
+            //  = OC *    ONX     *    ONY
+            ANN_ASSERT(WX <= INX, "newWindowSizeX should be less than " << INX << " given: " << WX);
+            ANN_ASSERT(WY <= INY, "WY should be less than " << INY << " given: " << WY);
+            size_t ONX = INX - WX + 1;
+            size_t ONY = INY - WY + 1;
+            LayerDimensions ld{ OC, ONX, ONY };
             auto cl = std::make_shared<ClassificationLayer>(ld);
-            auto& wts = cl->classifierWeights;
-            wts.reserve(inputImageNumCategories);
-            for (size_t cat = 0; cat < inputImageNumCategories; ++cat)
+            auto& nrns = cl->resultingImage;
+            nrns.resize(OC);
+            for (size_t oc = 0; oc < OC; ++oc)
             {
-                wts.emplace_back();
-                auto & cwts = wts.back();
-                cwts.weightWindow.reserve(inputImageWidth);
-                for (size_t x = 0; x < inputImageWidth; ++x)
+                nrns[oc].resize(ONX);
+                for (size_t onx = 0; onx < ONX; ++onx)
                 {
-                    cwts.weightWindow.emplace_back();
-                    auto& cwtsCol = cwts.weightWindow.back();
-                    cwtsCol.reserve(inputImageHeight);
-                    for (size_t y = 0; y < inputImageHeight; ++y)
-                        cwtsCol.push_back(m_network->addWeight());
+                    nrns[oc][onx].reserve(ONY);
+                    for (size_t ony = 0; ony < ONY; ++ony)
+                    {
+                        // The number of inputs for each output neuron will be:
+                        //    IC * WX * WY
+                        nrns[oc][onx].emplace_back(m_network->addNeuron(m_activationFunction, IC * WX * WY));
+                    }
                 }
             }
 
-            // set layer neurons
-            auto& neurons = cl->resultingImage;
-            neurons.reserve(resultingImageWidth);
-            size_t numNeuronInputs = inputImageWidth * inputImageHeight * inputImageNumCategories;
-            for (size_t onx = 0; onx < resultingImageWidth; ++onx)
+            // The number of weights will be:
+            //    OC * IC * WX * WY
+            auto& wts = cl->classifierWeights;
+            wts.resize(OC);
+            for (size_t oc = 0; oc < OC; ++oc)
             {
-                neurons.emplace_back();
-                auto& neuronCol = neurons.back();
-                neuronCol.reserve(resultingImageHeight);
-                for (size_t ony = 0; ony < resultingImageHeight; ++ony)
+                wts[oc].resize(IC);
+                for (size_t ic = 0; ic < IC; ++ic)
                 {
-                    neuronCol.emplace_back();
-                    auto& classifiers = neuronCol.back().classifiers;
-                    classifiers.reserve(numCategories);
-                    for (size_t ocat = 0; ocat < numCategories; ++ocat)
+                    wts[oc][ic].resize(WX);
+                    for (size_t wx = 0; wx < WX; ++wx)
                     {
-                        classifiers.push_back(m_network->addNeuron(m_activationFunction, numNeuronInputs));
-                        auto neuron = classifiers.back();
-                        size_t nin = 0;
-                        for (size_t inx = 0; inx < inputImageWidth; ++inx)
+                        wts[oc][ic][wx].reserve(WY);
+                        for (size_t wy = 0; wy < WY; ++wy)
                         {
-                            for (size_t iny = 0; iny < inputImageHeight; ++iny)
+                            wts[oc][ic][wx].emplace_back(m_network->addWeight());
+                        }
+                    }
+                }
+            }
+            
+            
+            // The output neuron at this coordinate:
+            //    (oc, onx, ony)
+            // will use the input neurons at coordinate:
+            //    (ic, inx+onx, iny+ony)
+            // with weight
+            //    (oc, ic, inx, iny)
+            // such that:
+            //    ic  \elem [0, IC)
+            //    inx \elem [0, WX)
+            //    iny \elem [0, WY)
+
+            for (size_t oc = 0; oc < OC; ++oc)
+            {
+                for (size_t onx = 0; onx < ONX; ++onx)
+                {
+                    for (size_t ony = 0; ony < ONY; ++ony)
+                    {
+                        size_t inputIndex = 0;
+                        for (size_t ic = 0; ic < IC; ++ic)
+                        {
+                            for (size_t inx = 0; inx < WX; ++inx)
                             {
-                                for (size_t icat = 0; icat < inputImageNumCategories; ++icat)
+                                for (size_t iny = 0; iny < WY; ++iny)
                                 {
-                                    m_network->connectWeightToNeuron(cl->classifierWeights[icat].weightWindow[inx][iny], neuron, { nin });
+                                    m_network->connectWeightToNeuron(
+                                        wts[oc][ic][inx][iny],
+                                        nrns[oc][onx][ony],
+                                        { inputIndex }
+                                    );
                                     if (m_layers.empty())
                                     {
-                                        m_network->connectInputToNeuron(m_image[inx][iny], neuron, { nin });
+                                        m_network->connectInputToNeuron(
+                                            m_image[inx+onx][iny+ony],
+                                            nrns[oc][onx][ony],
+                                            { inputIndex }
+                                        );
                                     }
                                     else
                                     {
-                                        auto& pl = m_layers.back()->resultingImage;
-                                        m_network->connectNeurons(pl[inx][iny].classifiers[icat], neuron, { nin });
+                                        m_network->connectNeurons(
+                                            m_layers.back()->resultingImage[ic][inx+onx][iny+ony],
+                                            nrns[oc][onx][ony],
+                                            { inputIndex }
+                                        );
                                     }
-                                    ++nin;
+                                    ++inputIndex;
                                 }
                             }
                         }
                     }
                 }
             }
-
             m_layers.push_back(cl);
-
-
         }
 
 
@@ -167,6 +211,10 @@ namespace {
             {
                 auto const& ld = m_layers.back()->dimensions;
                 addLayer(ld.resultingImageWidth, ld.resultingImageHeight, numClassifiers);
+            }
+            for (size_t cat = 0; cat < numClassifiers; ++cat)
+            {
+                m_network->addOutput(m_layers.back()->resultingImage[cat][0][0]);
             }
             m_isFinalized = true;
         }
@@ -200,3 +248,12 @@ namespace {
 
 
 } // end anonymous namespace
+
+
+namespace mnist_deep_ann
+{
+    IConvolutionHierarchy::Ptr IConvolutionHierarchy::create(size_t imageWidth, size_t imageHeight, IActivationFunction::CPtr const& activationFunction)
+    {
+        return std::make_shared<ConvolutionHierarchyImpl>(imageWidth, imageHeight, activationFunction);
+    }
+}
