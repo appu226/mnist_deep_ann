@@ -71,12 +71,16 @@ namespace mnist_deep_ann
 
         virtual RVec evaluate(const RVec& inputs) = 0;
 
+        virtual void adjust(double stepSize) = 0;
+
         static Ptr create();
 
         virtual double getNeuronOutput(NeuronIndex neuron) const = 0;
         virtual double getErrorSensitivityToNeuronOutput(NeuronIndex neuron) const = 0;
         virtual double getWeight(WeightIndex weight) const = 0;
         virtual double getErrorSensitivityToWeight(WeightIndex weight) const = 0;
+
+        virtual void diagnose(std::ostream& out) const = 0;
 
     };
 

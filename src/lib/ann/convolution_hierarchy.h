@@ -37,8 +37,20 @@ namespace mnist_deep_ann {
         //   and 0-1 category vector (only the correct category is 1, all others are 0) as output.
         virtual double propagateExamples(std::vector<Example> const& examples, double stepSize) = 0;
 
+        // Adjust all weights based on previously computed sensitivity to error
+        virtual void adjust(double stepSize) = 0;
+
         // Use a trained vector to classify an example image
         virtual size_t categorize(RVec const& input) const = 0;
+
+        // randomly perturb weights
+        virtual void perturbWeights(double maxAbsShift) = 0;
+
+        // print internal diagnostics
+        virtual void diagnose(std::ostream& out) const = 0;
+
+        // Evaluate examples and compute error
+        virtual double getClassificationError(std::vector<Example> const& examples) const = 0;
     };
 
 

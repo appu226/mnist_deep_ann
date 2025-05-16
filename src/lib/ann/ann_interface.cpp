@@ -463,7 +463,7 @@ if (!(cond)) \
 			double error = 0;
 				
 			for (auto& elem : m_reverseTopSort)
-				elem->errorSensitivityToOutput = false;
+				elem->errorSensitivityToOutput = 0.0;
 			for (auto const& example : examples)
 			{
 				ANN_ASSERT(example.inputs.size() == m_inputs.size(), "Incorrect number of inputs in example");
@@ -524,6 +524,12 @@ if (!(cond)) \
 			return result;
 		}
 
+		void adjust(double stepSize) override
+		{
+			for (const auto& w : m_weights)
+				w->adjust(stepSize);
+		}
+
 
 		double getNeuronOutput(NeuronIndex neuron) const override
 		{
@@ -547,6 +553,95 @@ if (!(cond)) \
 		{
 			ANN_ASSERT(m_weights.size() > weight.v, "Invalid weight index " << weight.v);
 			return m_weights[weight.v]->errorSensitivityToOutput;
+		}
+
+		void diagnose(std::ostream& out) const override
+		{
+			//std::vector<std::shared_ptr<Weight> > m_weights;
+			//std::vector<std::shared_ptr<Neuron> > m_neurons;
+			//std::vector<std::shared_ptr<NetworkInput> > m_inputs;
+			//std::vector<std::shared_ptr<NetworkOutputError> > m_outputErrors;
+
+			//std::vector<std::shared_ptr<Element> > m_reverseTopSort;
+			//bool m_initialized = false;
+
+			std::unordered_map<Element const*, std::string> nameMap;
+			for (size_t iw = 0; iw < m_weights.size(); ++iw)
+			{
+				nameMap[m_weights[iw].get()] = "wt_" + std::to_string(iw);
+			}
+			for (size_t in = 0; in < m_neurons.size(); ++in)
+			{
+				nameMap[m_neurons[in].get()] = "nrn_" + std::to_string(in);
+			}
+			for (size_t iin = 0; iin < m_inputs.size(); ++iin)
+			{
+				nameMap[m_inputs[iin].get()] = "net_in_" + std::to_string(iin);
+			}
+			for (size_t iout = 0; iout < m_outputErrors.size(); ++iout)
+			{
+				nameMap[m_outputErrors[iout].get()] = "err_" + std::to_string(iout);
+			}
+
+			auto getName = [&nameMap](Element const* elem) -> std::string {
+				auto eit = nameMap.find(elem);
+				if (eit == nameMap.end())
+					throw std::runtime_error("Could not find name for element!!!");
+				return eit->second;
+			};
+
+			auto streamElement = [getName](Element const* elem, std::ostream& out) {
+				out << "\"inputElements\": [";
+				for (size_t iie = 0; iie < elem->inputElements.size(); ++iie)
+				{
+					out << (iie != 0 ? ", \"" : "\"") << getName(elem->inputElements[iie].lock().get()) << '"';
+				}
+				out << "], \"outputElements\": [";
+				for (size_t ioe = 0; ioe < elem->outputElements.size(); ++ioe)
+				{
+					out << (ioe != 0 ? ", \"" : "\"") << getName(elem->outputElements[ioe].lock().get()) << '"';
+				}
+				out << "], \"output\": " << elem->output
+					<< ", \"errorSensitivityToOutput\" : " << elem->errorSensitivityToOutput;
+			};
+
+			out << "{ " << "\"initialized\" : " << (m_initialized ? "true, " : "false, ");
+			out << "\"weights\" : {";
+			for (size_t iw = 0; iw < m_weights.size(); ++iw)
+			{
+				auto const& w = m_weights[iw];
+				out << (iw != 0 ? ", \"" : " \"") << getName(w.get()) << "\": {";
+				streamElement(w.get(), out);
+				out << '}';
+			}
+			out << " }, \"neurons\": {";
+			for (size_t in = 0; in < m_neurons.size(); ++in)
+			{
+				auto const& nrn = m_neurons[in];
+				out << (in != 0 ? ", \"" : " \"") << getName(nrn.get()) << "\": {";
+				streamElement(nrn.get(), out);
+				out << ", \"cachedWeightedSumOfInputs\": " << nrn->cachedWeightedSumOfInputs
+				    << '}';
+			}
+			out << " }, \"networkInputs\": {";
+			for (size_t ini = 0; ini < m_inputs.size(); ++ini)
+			{
+				auto const& netin = m_inputs[ini];
+				out << (ini != 0 ? ", \"" : " \"") << getName(netin.get()) << "\": {";
+				streamElement(netin.get(), out);
+				out << '}';
+			}
+			out << " }, \"networkOutputErrors\": {";
+			for (size_t ierr = 0; ierr < m_outputErrors.size(); ++ierr)
+			{
+				auto const& err = m_outputErrors[ierr];
+				out << (ierr != 0 ? ", \"" : " \"") << getName(err.get()) << "\": {";
+				streamElement(err.get(), out);
+				out << ", \"expectedOutput\": " << err->expectedOutput
+				    << '}';
+			}
+
+			out << "}}";
 		}
 			
 	}; // end NetworkImpl

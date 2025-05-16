@@ -227,6 +227,12 @@ namespace {
         }
 
 
+        void adjust(double stepSize) override
+        {
+            m_network->adjust(stepSize);
+        }
+
+
 
         size_t categorize(RVec const& input) const override
         {
@@ -244,7 +250,31 @@ namespace {
             }
             return resultIdx;
         }
-    };
+
+        void perturbWeights(double maxAbsShift) override
+        {
+            m_network->perturbWeights(maxAbsShift);
+        }
+
+        void diagnose(std::ostream& out) const override
+        {
+            m_network->diagnose(out);
+        }
+
+        double getClassificationError(std::vector<Example> const& examples) const override
+        {
+            double error = 0;
+            for (auto const& example : examples)
+            {
+                auto const& expected_outputs = example.outputs;
+                auto outputs = m_network->evaluate(example.inputs);
+                ANN_ASSERT(outputs.size() == expected_outputs.size(), "Output and expected output size don't match.");
+                for (size_t io = 0; io < outputs.size() && io < expected_outputs.size(); ++io)
+                    error += (outputs[io] - expected_outputs[io]) * (outputs[io] - expected_outputs[io]);
+            }
+            return error;
+        }
+    }; // end class ConvolutionHierarchyImpl
 
 
 } // end anonymous namespace
